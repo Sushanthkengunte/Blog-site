@@ -1,4 +1,6 @@
 var express = require("express"),
+    methodOverride = require("method-override"),
+    expressSanitizer = require("express-sanitizer"),
     mongoose = require("mongoose"),
     bodyParser = require("body-parser"),
     app = express();
@@ -7,6 +9,8 @@ mongoose.connect("mongodb://localhost/blogpost_app");
 app.set("view engine","ejs");
 app.use(express.static("public"));
 app.use(bodyParser.urlencoded({extended:true}));
+app.use(expressSanitizer()); // should be after body parser
+app.use(methodOverride("_method"))
 
 //title,image,body,created, Mongoose model
 var blogSchema = mongoose.Schema({
@@ -18,17 +22,14 @@ var blogSchema = mongoose.Schema({
 
 var blog = mongoose.model("Blog",blogSchema);
 
-// blog.create({
-//   title:"Testing",
-//   image:"https://images.unsplash.com/photo-1421098518790-5a14be02b243?ixlib=rb-0.3.5&s=b91c47d2c38da2083120c248e5899a6d&auto=format&fit=crop&w=1789&q=80",
-//   body:"This is the body"
-// });
+
 
 //Restfull Routes
 
 app.get("/",function(req, res) {
    res.redirect("/blogs"); 
 });
+//INDEX ROUTE
 app.get("/blogs",function(req,res){
     blog.find({},function(err,blogs){
         if(err){
@@ -39,8 +40,67 @@ app.get("/blogs",function(req,res){
     });
     
 });
+//NEW ROUTE
+app.get("/blogs/new",function(req, res) {
+    res.render("new");
+});
+//CREATE ROUTE
+app.post("/blogs",function(req,res){
+    req.body.blog.body = req.sanitize(req.body.blog.body);
+   blog.create(req.body.blog,function(err,newBlog){
+      if(err){
+          res.redirect("/blogs/new");
+          
+      } else{
+          
+          res.redirect("/blogs");
+      }
+   }); 
+});
 
+app.get("/blogs/:id",function(req, res) {
+   blog.findById(req.params.id,function(err,foundBlog){
+      if(err){
+          res.redirect("/blogs");
+      } else{
+          res.render("show",{blog:foundBlog});
+      }
+   });
+});
 
+//EDIT route
+app.get("/blogs/:id/edit",function(req, res) {
+    blog.findById(req.params.id,function(err,foundBlog){
+        if(err){
+            res.redirect("blogs");
+        }else{
+            res.render("edit",{blog:foundBlog}); 
+        }
+    })
+});
+//UPDATE RoUTE
+
+app.put("/blogs/:id",function(req,res){
+    req.body.blog.body = req.sanitize(req.body.blog.body);
+    // parameters : 1st id to search for, new data and callback
+   blog.findByIdAndUpdate(req.params.id,req.body.blog,function(err,updatedBlog){
+       if(err){
+           res.redirect("/blogs");
+       }else{
+           res.redirect("/blogs/"+req.params.id);
+       }
+   }); 
+});
+// DELETE Route
+app.delete("/blogs/:id",function(req,res){
+   blog.findByIdAndRemove(req.params.id,function(err){
+      if(err){
+          res.redirect("/blogs");
+      } else {
+          res.redirect("/blogs");
+      }
+   }); 
+});
 app.listen(process.env.PORT,process.env.IP,function(){
    console.log("Start Blogging"); 
 });
